@@ -1,0 +1,5 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/AL-Go/8e1121ac5c991554529a778ca7bd92e82265fa42/Actions/.Modules/settings.schema.json",
+  "type": "PTE",
+  "templateUrl": "https://github.com/microsoft/AL-Go-PTE@preview"
+}
