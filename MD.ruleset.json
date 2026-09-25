@@ -1,0 +1,56 @@
+{
+    "name": "MD",
+    "description": "MADIC dynamics",
+    "rules": [
+        {
+            "id": "AA0215",
+            "action": "Hidden",
+            "justification": "Not Important"
+        },
+        {
+            "id": "AA0218",
+            "action": "Hidden",
+            "justification": "Not Important"
+        },
+        {
+            "id": "AA0470",
+            "action": "Hidden",
+            "justification": "Not Important"
+        },
+        {
+            "id": "AA0072",
+            "action": "Hidden",
+            "justification": "Not Important"
+        },
+        {
+            "id": "AA0005",
+            "action": "Hidden",
+            "justification": "Not Important"
+        },
+        {
+            "id": "AA0237",
+            "action": "Hidden",
+            "justification": "Not Important"
+        },
+        {
+            "id": "AA0074",
+            "action": "Hidden",
+            "justification": "Not Important"
+        },
+        {
+            "id": "AA0217",
+            "action": "Hidden",
+            "justification": "Not Important"
+        },
+        {
+            "id": "AL0432",
+            "action": "Hidden",
+            "justification": "Resolve later"
+        },
+        {
+            "id": "AA0073",
+            "action": "Hidden",
+            "justification": "Resolve later"
+        }
+    ]
+}

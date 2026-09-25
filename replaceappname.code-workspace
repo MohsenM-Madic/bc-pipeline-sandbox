@@ -1,0 +1,25 @@
+{
+  "folders": [
+    {
+      "path": "Replace with APP Name Here"
+    },
+    {
+      "path": "Replace with APP Name Here.Test"
+    },
+    {
+      "path": ".AL-Go"
+    }
+  ],
+  "settings": {
+    "al.codeAnalyzers": [
+      
+      "${CodeCop}",
+      "${PerTenantExtensionCop}",
+      "${UICop}"
+    ],
+    "al.enableCodeAnalysis": true,
+    "al.enableCodeActions": true,
+    "al.backgroundCodeAnalysis": true,
+    "al.ruleSetPath": "../MD.ruleset.json"
+  }
+}

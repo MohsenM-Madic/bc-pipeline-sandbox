@@ -1,0 +1,93 @@
+# Auto Release on Merge
+#
+# WHAT THIS DOES (plain English):
+# Every time someone merges code into "main", this robot:
+#   1. Reads your current app version number from app.json
+#   2. Bumps the smallest part of it up by 1 (a "patch" bump)
+#   3. Runs your existing "Create Release" workflow automatically,
+#      filling in all the boxes for you
+#
+# WHERE TO PUT THIS FILE:
+#   .github/workflows/auto-release-on-merge.yml
+#
+# BEFORE YOU USE THIS — 2 things to check:
+#   1. Update APP_JSON_PATH below to point at your real app.json file.
+#      If you're not sure, look in your repo's Code tab for a file
+#      literally named "app.json" and copy its folder path.
+#   2. The input names below (name, tag, newVersionNumber, buildVersion)
+#      are my best read of your Create Release screen. If the workflow
+#      fails on first run, open .github/workflows/CreateRelease.yaml in
+#      your repo and check the "inputs:" section — the names there must
+#      match exactly what's used below.
+
+name: Auto Release on Merge
+
+on:
+  push:
+    branches: [main]
+
+# Stops this from triggering itself in an endless loop when the release
+# process itself commits back to main.
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+jobs:
+  bump-and-release:
+    # Skip if the commit was made by the release automation itself
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ---- STEP 1 & 2: work out the next small "patch" bump ----
+      # We use the last GitHub release tag as our starting point, not app.json —
+      # AL-Go calculates the full build number itself, so the tag history is the
+      # reliable source of "what got released last."
+      - name: Calculate the new version number
+        id: bump
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LAST_TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
+
+          if [ -z "$LAST_TAG" ]; then
+            echo "No previous release found — starting at 1.0.0"
+            NEW_VERSION="1.0.0"
+          else
+            echo "Last release was: $LAST_TAG"
+            MAJOR=$(echo "$LAST_TAG" | cut -d. -f1)
+            MINOR=$(echo "$LAST_TAG" | cut -d. -f2)
+            PATCH=$(echo "$LAST_TAG" | cut -d. -f3)
+            if [ -z "$PATCH" ]; then PATCH=0; fi
+            NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+          fi
+
+          echo "New version will be: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      # ---- STEP 3: trigger your existing Create Release workflow ----
+      # Note: updateVersionNumber is left blank on purpose. That field only
+      # exists to deliberately change the Major.Minor number in app.json —
+      # the small patch-style bump above is handled entirely through the
+      # release tag, without touching app.json at all.
+      - name: Trigger Create Release automatically
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NEW_VERSION="${{ steps.bump.outputs.new_version }}"
+
+          gh workflow run CreateRelease.yaml \
+            --ref main \
+            -f name="Release v$NEW_VERSION" \
+            -f tag="$NEW_VERSION" \
+            -f appVersion="latest" \
+            -f updateVersionNumber="" \
+            -f prerelease=false \
+            -f draft=false

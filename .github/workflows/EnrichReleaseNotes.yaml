@@ -1,0 +1,83 @@
+# Enrich Release Notes with Jira Links
+#
+# WHAT THIS DOES:
+# After a release is published (either manually or by the auto-release
+# robot), this scans every commit since the previous release for Jira
+# ticket IDs and appends a clickable "Related Jira Tickets" section to
+# the release notes — so a customer-facing changelog links straight to
+# the tickets it closes, instead of just showing raw commit messages.
+#
+# WHERE TO PUT THIS FILE:
+#   .github/workflows/EnrichReleaseNotes.yaml
+#
+# ONE THING YOU MUST SET UP FIRST:
+#   Add a repo variable called JIRA_BASE_URL with your Jira site's
+#   browse URL, e.g. https://yourcompany.atlassian.net/browse
+#   (Settings → Secrets and variables → Actions → Variables)
+
+name: Enrich Release Notes with Jira Links
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  enrich-notes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find Jira tickets and update release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [ -z "$JIRA_BASE_URL" ]; then
+            echo "JIRA_BASE_URL variable isn't set — skipping enrichment."
+            echo "Set it under Settings → Secrets and variables → Actions → Variables."
+            exit 0
+          fi
+
+          # Find the release/tag before this one, so we only look at
+          # commits that are actually new in this release.
+          PREVIOUS_TAG=$(gh release list --limit 2 --json tagName --jq '.[1].tagName' 2>/dev/null || echo "")
+
+          if [ -n "$PREVIOUS_TAG" ]; then
+            echo "Comparing $PREVIOUS_TAG to $TAG"
+            COMMITS=$(git log "$PREVIOUS_TAG..$TAG" --pretty=format:"%s")
+          else
+            echo "No previous release found — scanning all history."
+            COMMITS=$(git log "$TAG" --pretty=format:"%s")
+          fi
+
+          # Pull out anything that looks like a Jira ticket ID (e.g. PROJ-123)
+          TICKETS=$(echo "$COMMITS" | grep -oE '[A-Z][A-Z0-9]+-[0-9]+' | sort -u)
+
+          if [ -z "$TICKETS" ]; then
+            echo "No Jira ticket IDs found in this release's commits — nothing to add."
+            exit 0
+          fi
+
+          echo "Found tickets:"
+          echo "$TICKETS"
+
+          # Build the markdown section
+          LINKS="## Related Jira Tickets\n\n"
+          for TICKET in $TICKETS; do
+            LINKS="${LINKS}- [$TICKET]($JIRA_BASE_URL/$TICKET)\n"
+          done
+
+          # Grab the existing auto-generated notes and append our section
+          EXISTING_NOTES=$(gh release view "$TAG" --json body --jq '.body')
+          NEW_NOTES="${EXISTING_NOTES}\n\n${LINKS}"
+
+          echo -e "$NEW_NOTES" > /tmp/release-notes.md
+          gh release edit "$TAG" --notes-file /tmp/release-notes.md
+
+          echo "✅ Release notes updated with Jira ticket links."

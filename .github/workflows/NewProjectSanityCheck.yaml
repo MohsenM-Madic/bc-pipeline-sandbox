@@ -1,0 +1,88 @@
+# New Project Sanity Check
+#
+# WHAT THIS DOES:
+# Checks that a repo created from this template has actually been
+# configured before anyone relies on it — instead of finding out
+# something's missing when a deployment silently fails weeks later.
+#
+# It runs automatically on every push to main, and you can also run it
+# manually any time from the Actions tab to double-check a project.
+#
+# WHERE TO PUT THIS FILE:
+#   .github/workflows/NewProjectSanityCheck.yaml
+#
+# CUSTOMIZE THIS:
+#   The checks below are a starting set. Add more lines following the
+#   same pattern for anything else every new customer project must have
+#   configured before it's considered "ready" — e.g. specific repo
+#   variables, additional secrets, a Slack webhook, etc.
+
+name: New Project Sanity Check
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  sanity-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Run checks
+        env:
+          AUTHCONTEXT_SET: ${{ secrets.AUTHCONTEXT != '' }}
+          JIRA_PROJECT_KEY: ${{ vars.JIRA_PROJECT_KEY }}
+        run: |
+          FAILED=0
+          SUMMARY="## New Project Sanity Check\n\n"
+
+          # --- Check 1: has the placeholder app name been renamed? ---
+          if find . -maxdepth 1 -iname "Replace with APP Name Here*" | grep -q .; then
+            echo "❌ App folder still uses the placeholder name."
+            SUMMARY="${SUMMARY}- ❌ **App name** — still says 'Replace with APP Name Here'. Rename the app folder(s) and update app.json.\n"
+            FAILED=1
+          else
+            echo "✅ App folder has been renamed."
+            SUMMARY="${SUMMARY}- ✅ **App name** — renamed from the placeholder.\n"
+          fi
+
+          # --- Check 2: at least one DeployTo<Environment> block exists ---
+          if [ -f ".github/AL-Go-Settings.json" ] && grep -q '"DeployTo' ".github/AL-Go-Settings.json"; then
+            echo "✅ At least one DeployTo environment block is configured."
+            SUMMARY="${SUMMARY}- ✅ **Sandbox deployment** — at least one DeployTo block found.\n"
+          else
+            echo "❌ No DeployTo<Environment> block found in AL-Go-Settings.json."
+            SUMMARY="${SUMMARY}- ❌ **Sandbox deployment** — no DeployTo block yet. Add one with SyncMode: ForceSync for this customer's sandbox.\n"
+            FAILED=1
+          fi
+
+          # --- Check 3: AUTHCONTEXT secret is set ---
+          if [ "$AUTHCONTEXT_SET" = "true" ]; then
+            echo "✅ AUTHCONTEXT secret is set."
+            SUMMARY="${SUMMARY}- ✅ **Deployment credentials** — AUTHCONTEXT secret is set.\n"
+          else
+            echo "❌ AUTHCONTEXT secret is missing."
+            SUMMARY="${SUMMARY}- ❌ **Deployment credentials** — AUTHCONTEXT secret isn't set. Deployments will fail without it.\n"
+            FAILED=1
+          fi
+
+          # --- Check 4: Jira project key variable is set ---
+          if [ -n "$JIRA_PROJECT_KEY" ]; then
+            echo "✅ JIRA_PROJECT_KEY variable is set to: $JIRA_PROJECT_KEY"
+            SUMMARY="${SUMMARY}- ✅ **Jira link** — project key set to $JIRA_PROJECT_KEY.\n"
+          else
+            echo "❌ JIRA_PROJECT_KEY repo variable isn't set."
+            SUMMARY="${SUMMARY}- ❌ **Jira link** — JIRA_PROJECT_KEY variable isn't set. Add it under Settings → Secrets and variables → Actions → Variables.\n"
+            FAILED=1
+          fi
+
+          echo -e "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$FAILED" = "1" ]; then
+            echo ""
+            echo "One or more checks failed — see the summary tab above for what's missing."
+            exit 1
+          fi

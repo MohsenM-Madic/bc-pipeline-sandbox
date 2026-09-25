@@ -1,0 +1,55 @@
+# Branch Name Check
+#
+# WHAT THIS DOES:
+# Blocks a Pull Request from being merged if its branch name doesn't
+# contain a Jira ticket ID (e.g. PROJ-123-fix-login-bug). This exists
+# because every Jira<->GitHub automation rule (status updates, comments,
+# etc.) silently does nothing if the ticket ID isn't in the branch name —
+# this catches that mistake immediately instead of someone discovering it
+# a week later when the board looks wrong.
+#
+# WHERE TO PUT THIS FILE:
+#   .github/workflows/BranchNameCheck.yaml
+#
+# ONE THING TO CUSTOMIZE:
+#   The pattern below assumes Jira ticket keys look like "PROJ-123"
+#   (letters, a dash, numbers). If your Jira project key is different,
+#   you don't need to change anything — this matches ANY project key
+#   automatically. You only need to edit ALLOWED_BASE_BRANCHES below if
+#   your base branch names differ from main / qa-current / qa-next.
+
+name: Branch Name Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  check-branch-name:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify branch name contains a Jira ticket ID
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          BASE="${{ github.base_ref }}"
+
+          # Don't block PRs between your own long-lived branches
+          # (e.g. qa-next -> main), only feature/fix branches.
+          ALLOWED_BASE_BRANCHES="main qa-current qa-next"
+
+          echo "Checking branch: $BRANCH"
+
+          # Matches things like PROJ-123-anything or proj-123-anything
+          if echo "$BRANCH" | grep -qiE '^[a-z]+-[0-9]+-.+'; then
+            echo "✅ Branch name contains a Jira ticket ID — good to go."
+          else
+            echo "❌ This branch name doesn't contain a Jira ticket ID."
+            echo ""
+            echo "Expected something like: PROJ-123-short-description"
+            echo "Got: $BRANCH"
+            echo ""
+            echo "Rename the branch (or create a new PR from a correctly"
+            echo "named branch) so Jira's automation can link this work"
+            echo "back to the ticket automatically."
+            exit 1
+          fi

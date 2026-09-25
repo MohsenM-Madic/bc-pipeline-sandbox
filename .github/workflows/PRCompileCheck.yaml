@@ -1,7 +1,37 @@
-name: ' Test Next Minor'
+# PR Compile Check (Fast)
+#
+# WHAT THIS DOES:
+# Runs on every Pull Request and only checks that the code compiles —
+# it uses "compiler folder" mode, which skips spinning up a full BC
+# container entirely. This is the expensive part of every build, so
+# this gives fast feedback (seconds, not minutes) for typos/syntax
+# errors on every push, without paying container cost every time.
+#
+# This does NOT run your actual tests. Real testing still happens in
+# your normal CI/CD workflow when code merges into qa-current, qa-next,
+# or main — this is purely an early warning system for PRs.
+#
+# WHERE TO PUT THIS FILE:
+#   .github/workflows/PRCompileCheck.yaml
+#
+# ALSO ADD THIS FILE (required — this is what actually turns on the
+# fast containerless mode for this specific workflow):
+#   .github/PR Compile Check.settings.json
+#   {
+#     "useCompilerFolder": true,
+#     "doNotPublishApps": true
+#   }
+#
+# HONEST NOTE: this is adapted from your own " Test Current" workflow
+# structure (Current.yaml), which I know works in your repo — but I
+# haven't run this exact file in your environment. Test it on a
+# throwaway PR before trusting it as a required check.
+
+name: ' PR Compile Check'
 
 on:
-  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
@@ -18,7 +48,7 @@ env:
 jobs:
   Initialization:
     needs: [ ]
-    runs-on: [ windows-latest ]
+    runs-on: [ ubuntu-latest ]
     outputs:
       telemetryScopeJson: ${{ steps.init.outputs.telemetryScopeJson }}
       githubRunner: ${{ steps.ReadSettings.outputs.GitHubRunnerJson }}
@@ -43,7 +73,7 @@ jobs:
         uses: microsoft/AL-Go-Actions/WorkflowInitialize@v5.0
         with:
           shell: powershell
-          eventId: "DO0100"
+          eventId: "DO0102"
 
       - name: Read settings
         id: ReadSettings
@@ -70,7 +100,7 @@ jobs:
       matrix:
         include: ${{ fromJson(needs.Initialization.outputs.buildOrderJson)[0].buildDimensions }}
       fail-fast: false
-    name: Build ${{ matrix.projectName }} (${{ matrix.buildMode }})
+    name: Compile Check ${{ matrix.projectName }}
     uses: ./.github/workflows/_BuildALGoProject.yaml
     secrets: inherit
     with:
@@ -82,13 +112,13 @@ jobs:
       buildMode: ${{ matrix.buildMode }}
       projectDependenciesJson: ${{ needs.Initialization.outputs.projectDependenciesJson }}
       secrets: 'licenseFileUrl,codeSignCertificateUrl,*codeSignCertificatePassword,keyVaultCertificateUrl,*keyVaultCertificatePassword,keyVaultClientId,gitHubPackagesContext,applicationInsightsConnectionString'
-      publishThisBuildArtifacts: ${{ needs.Initialization.outputs.workflowDepth > 1 }}
-      artifactsNameSuffix: 'NextMinor'
+      publishThisBuildArtifacts: false
+      artifactsNameSuffix: 'PRCompileCheck'
 
   PostProcess:
     needs: [ Initialization, Build ]
     if: always()
-    runs-on: [ windows-latest ]
+    runs-on: [ ubuntu-latest ]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -98,5 +128,5 @@ jobs:
         uses: microsoft/AL-Go-Actions/WorkflowPostProcess@v5.0
         with:
           shell: powershell
-          eventId: "DO0100"
+          eventId: "DO0102"
           telemetryScopeJson: ${{ needs.Initialization.outputs.telemetryScopeJson }}
