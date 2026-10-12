@@ -2,5 +2,6 @@
   "type": "PTE",
   "templateUrl": "https://github.com/microsoft/AL-Go-PTE@main",
   "runs-on": "ubuntu-latest",
-  "skipUpgrade": true
+  "skipUpgrade": true,
+  "runs-on": "ubuntu-latest" 
 }
